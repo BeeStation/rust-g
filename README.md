@@ -49,7 +49,7 @@ System libraries:
     ```sh
     sudo dpkg --add-architecture i386
     sudo apt-get update
-    sudo apt-get install zlib1g-dev:i386 libssl-dev:i386 pkg-config:i386
+    sudo apt-get install zlib1g-dev:i386 libssl-dev:i386
     ```
 
 * Other Linux distributions install the appropriate **32-bit development** and **32-bit runtime** packages.
@@ -77,6 +77,7 @@ cargo build --release --target i686-pc-windows-msvc
 To get additional features, pass a list to `--features`, for example `--features hash,url`. To get all features, pass `--all-features`. To disable the default features, pass `--no-default-features`.
 
 The default features are:
+* acreplace: Aho-Corasick string matching and replacement.
 * cellularnoise: Function to generate cellular automata-based noise.
 * dmi: DMI manipulations which are impossible from within BYOND.
   Used by the asset cache subsystem to improve load times.
@@ -85,13 +86,17 @@ The default features are:
 * http: Asynchronous HTTP(s) client supporting most standard methods.
 * json: Function to check JSON validity.
 * log: Faster log output.
-* sql: Asynchronous MySQL/MariaDB client library.
 * noise: 2d Perlin noise.
+* sql: Asynchronous MySQL/MariaDB client library.
+* time: High-accuracy time measuring.
+* toml: TOML parser.
 
 Additional features are:
 * hash: Faster replacement for `md5`, support for SHA-1, SHA-256, and SHA-512. Requires OpenSSL on Linux.
-* url: Faster replacements for `url_encode` and `url_decode`.
+* redis_pubsub: Library for sending and receiving messages through Redis.
 * unzip: Function to download a .zip from a URL and unzip it to a directory.
+* url: Faster replacements for `url_encode` and `url_decode`.
+* worleynoise: Function that generates a type of nice looking cellular noise, more expensive than cellularnoise
 
 ## Installing
 

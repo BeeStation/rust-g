@@ -7,9 +7,9 @@ use std::{
 use thiserror::Error;
 
 #[cfg(feature = "png")]
-use png::{DecodingError, EncodingError};
+use image::error::ImageError;
 #[cfg(feature = "png")]
-use image::error::{ImageError};
+use png::{DecodingError, EncodingError};
 
 #[cfg(feature = "unzip")]
 use zip::result::ZipError;
@@ -35,23 +35,29 @@ pub enum Error {
     #[error(transparent)]
     ImageEncoding(#[from] EncodingError),
     #[error(transparent)]
-    ParseIntError(#[from] ParseIntError),
+    ParseInt(#[from] ParseIntError),
     #[error(transparent)]
-    ParseFloatError(#[from] ParseFloatError),
+    ParseFloat(#[from] ParseFloatError),
     #[error(transparent)]
-    GenericImageError(#[from] ImageError),
+    GenericImage(#[from] ImageError),
     #[cfg(feature = "png")]
     #[error("Invalid png data.")]
-    InvalidPngDataError,
+    InvalidPngData,
     #[cfg(feature = "http")]
     #[error(transparent)]
-    RequestError(#[from] reqwest::Error),
+    Request(#[from] reqwest::Error),
+    #[cfg(feature = "toml")]
+    #[error(transparent)]
+    TomlDeserialization(#[from] toml_dep::de::Error),
     #[cfg(feature = "http")]
     #[error(transparent)]
-    SerializationError(#[from] serde_json::Error),
+    Serialization(#[from] serde_json::Error),
     #[cfg(feature = "unzip")]
     #[error(transparent)]
-    UnzipError(#[from] ZipError)
+    Unzip(#[from] ZipError),
+    #[cfg(feature = "hash")]
+    #[error("Unable to decode hex value.")]
+    HexDecode,
 }
 
 impl From<Utf8Error> for Error {

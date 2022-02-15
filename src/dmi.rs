@@ -5,15 +5,15 @@ use std::{
     path::Path,
 };
 
-byond_fn! { dmi_strip_metadata(path) {
+byond_fn!(fn dmi_strip_metadata(path) {
     strip_metadata(path).err()
-} }
+});
 
-byond_fn! { dmi_create_png(path, width, height, data) {
+byond_fn!(fn dmi_create_png(path, width, height, data) {
     create_png(path, width, height, data).err()
-} }
+});
 
-byond_fn! { dmi_resize_png(path, width, height, resizetype) {
+byond_fn!(fn dmi_resize_png(path, width, height, resizetype) {
     let resizetype = match resizetype {
         "catmull" => image::imageops::CatmullRom,
         "gaussian" => image::imageops::Gaussian,
@@ -23,11 +23,11 @@ byond_fn! { dmi_resize_png(path, width, height, resizetype) {
         _ => image::imageops::Nearest,
     };
     resize_png(path, width, height, resizetype).err()
-} }
+});
 
 fn strip_metadata(path: &str) -> Result<()> {
     let (info, image) = read_png(path)?;
-    Ok(write_png(path, info, image)?)
+    write_png(path, info, image)
 }
 
 fn read_png(path: &str) -> Result<(OutputInfo, Vec<u8>)> {
@@ -48,12 +48,12 @@ fn write_png(path: &str, info: OutputInfo, image: Vec<u8>) -> Result<()> {
 }
 
 fn create_png(path: &str, width: &str, height: &str, data: &str) -> Result<()> {
-    let width = u32::from_str_radix(width, 10)?;
-    let height = u32::from_str_radix(height, 10)?;
+    let width = width.parse::<u32>()?;
+    let height = height.parse::<u32>()?;
 
     let bytes = data.as_bytes();
     if bytes.len() % 7 != 0 {
-        return Err(Error::InvalidPngDataError);
+        return Err(Error::InvalidPngData);
     }
 
     let mut result: Vec<u8> = Vec::new();
@@ -76,9 +76,14 @@ fn create_png(path: &str, width: &str, height: &str, data: &str) -> Result<()> {
     Ok(writer.write_image_data(&result)?)
 }
 
-fn resize_png<P: AsRef<Path>>(path: P, width: &str, height: &str, resizetype: image::imageops::FilterType) -> std::result::Result<(), Error> {
-    let width = u32::from_str_radix(width, 10)?;
-    let height = u32::from_str_radix(height, 10)?;
+fn resize_png<P: AsRef<Path>>(
+    path: P,
+    width: &str,
+    height: &str,
+    resizetype: image::imageops::FilterType,
+) -> std::result::Result<(), Error> {
+    let width = width.parse::<u32>()?;
+    let height = height.parse::<u32>()?;
 
     let img = image::open(path.as_ref())?;
 

@@ -41,14 +41,14 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BYOND_MAJOR: 513
-      BYOND_MINOR: 1521
+      BYOND_MINOR: 1536
       PKG_CONFIG_ALLOW_CROSS: 1
     steps:
       - uses: actions/checkout@v1
       - run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install g++-multilib zlib1g-dev:i386 libssl-dev:i386 pkg-config:i386
+          sudo apt-get install g++-multilib zlib1g-dev:i386 libssl-dev:i386
           ./scripts/install_byond.sh
       - uses: actions-rs/toolchain@v1
         with:
@@ -59,13 +59,13 @@ jobs:
         with:
           toolchain: stable
           command: build
-          args: --target i686-unknown-linux-gnu
-      - name: Run tests
+          args: --target i686-unknown-linux-gnu --all-features
+      - name: Run tests (all features)
         uses: actions-rs/cargo@v1
         with:
           toolchain: stable
           command: test
-          args: --target i686-unknown-linux-gnu
+          args: --target i686-unknown-linux-gnu --all-features
         env:
           BYOND_BIN: /home/runner/BYOND/byond/bin
       - name: Build (all features)
