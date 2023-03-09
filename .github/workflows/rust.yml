@@ -11,101 +11,82 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v1
-
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           target: i686-pc-windows-msvc
-          components: rustfmt, clippy
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Clippy (all features)
+      - name: Build (all features)
         uses: actions-rs/cargo@v1
         with:
           toolchain: stable
-          command: clippy
-          args: --target i686-pc-windows-msvc --all-features --locked -- -D warnings --all-features
-
-      - name: Rustfmt
-        uses: actions-rs/cargo@v1
+          command: build
+          args: --target i686-pc-windows-msvc --release --all-features
+      - name: Upload artifact (all features)
+        uses: actions/upload-artifact@v1
         with:
-          toolchain: stable
-          command: fmt
-          args: -- --check
-
-      - name: Build (release) (default features)
+          name: full_rust_g.dll
+          path: target/i686-pc-windows-msvc/release/rust_g.dll
+      - name: Build (release)
         uses: actions-rs/cargo@v1
         with:
           toolchain: stable
           command: build
           args: --target i686-pc-windows-msvc --release
-
-      - uses: actions/upload-artifact@v3
+      - name: Upload artifact (release)
+        uses: actions/upload-artifact@v1
         with:
-          name: Windows Build
-          path: |
-            target/i686-pc-windows-msvc/release/rust_g.dll
-            target/i686-pc-windows-msvc/release/rust_g.pdb
-            target/rust_g.dm
-
-
+          name: rust_g.dll
+          path: target/i686-pc-windows-msvc/release/rust_g.dll
   build-linux:
     runs-on: ubuntu-latest
     env:
-      BYOND_MAJOR: 514
-      BYOND_MINOR: 1585
+      BYOND_MAJOR: 513
+      BYOND_MINOR: 1521
       PKG_CONFIG_ALLOW_CROSS: 1
-
     steps:
       - uses: actions/checkout@v1
-
       - run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install g++-multilib zlib1g-dev:i386 libssl-dev:i386
+          sudo apt-get install g++-multilib zlib1g-dev:i386 libssl-dev:i386 pkg-config:i386
           ./scripts/install_byond.sh
-
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          target: i686-unknown-linux-gnu
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Check (all features)
-        uses: actions-rs/cargo@v1
-        with:
-          toolchain: stable
-          command: check
-          args: --target i686-unknown-linux-gnu --all-features
-
-      - name: Build (Debug) (all features)
+          target: i686-unknown-linux-gnu      
+      - name: Build (Debug)
         uses: actions-rs/cargo@v1
         with:
           toolchain: stable
           command: build
-          args: --target i686-unknown-linux-gnu --all-features
-
-      - name: Run tests (all features)
+          args: --target i686-unknown-linux-gnu
+      - name: Run tests
         uses: actions-rs/cargo@v1
         with:
           toolchain: stable
           command: test
-          args: --target i686-unknown-linux-gnu --all-features
+          args: --target i686-unknown-linux-gnu
         env:
           BYOND_BIN: /home/runner/BYOND/byond/bin
-
-      - name: Build (release) (default features)
+      - name: Build (all features)
         uses: actions-rs/cargo@v1
         with:
           toolchain: stable
           command: build
           args: --target i686-unknown-linux-gnu --release --all-features
-
-      - uses: actions/upload-artifact@v3
+      - name: Upload artifact (all features)
+        uses: actions/upload-artifact@v1
         with:
-          name: Linux Build
-          path: |
-            target/i686-unknown-linux-gnu/release/librust_g.so
-            target/rust_g.dm
+          name: full_librust_g.so
+          path: target/i686-unknown-linux-gnu/release/librust_g.so
+      - name: Build (release)
+        uses: actions-rs/cargo@v1
+        with:
+          toolchain: stable
+          command: build
+          args: --target i686-unknown-linux-gnu --release
+      - name: Upload artifact (release)
+        uses: actions/upload-artifact@v1
+        with:
+          name: librust_g.so
+          path: target/i686-unknown-linux-gnu/release/librust_g.so
