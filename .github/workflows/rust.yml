@@ -38,7 +38,7 @@ jobs:
           name: rust_g.dll
           path: target/i686-pc-windows-msvc/release/rust_g.dll
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     env:
       BYOND_MAJOR: 513
       BYOND_MINOR: 1521
