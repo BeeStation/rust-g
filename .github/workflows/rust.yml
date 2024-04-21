@@ -41,7 +41,7 @@ jobs:
       - name: Build (release) (default features)
         run: cargo build --target i686-pc-windows-msvc --locked --release
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: Windows Build (Default Features)
           path: |
@@ -52,8 +52,8 @@ jobs:
   build-linux:
     runs-on: ubuntu-20.04
     env:
-      BYOND_MAJOR: 513
-      BYOND_MINOR: 1521
+      BYOND_MAJOR: 515
+      BYOND_MINOR: 1636
       PKG_CONFIG_ALLOW_CROSS: 1
     steps:
       - uses: actions/checkout@v4
@@ -97,7 +97,7 @@ jobs:
       - name: Build (release) (default features)
         run: cargo build --target i686-unknown-linux-gnu --locked --release
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: Linux Build (Default Features)
           path: |
