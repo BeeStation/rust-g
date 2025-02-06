@@ -126,20 +126,6 @@ cellularnoise = ["rand", "rayon"]
 dmi = ["png", "image"]
 file = []
 git = ["gix", "chrono"]
-<<<<<<< HEAD
-=======
-http = ["ureq", "serde", "serde_json", "once_cell", "jobs"]
-json = ["serde", "serde_json"]
-log = ["chrono"]
-sanitize = ["ammonia", "serde_json"]
-sound_len = ["symphonia"]
-sql = ["mysql", "serde", "serde_json", "once_cell", "dashmap", "jobs"]
-time = []
-toml = ["serde", "serde_json", "toml-dep"]
-url = ["url-dep", "percent-encoding"]
-
-# additional features
->>>>>>> df8ea42 (Feature: rustg_sound_length() (#192))
 hash = [
     "base64",
     "const-random",
