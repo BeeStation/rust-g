@@ -101,6 +101,7 @@ The default features are:
 * log: Faster log output.
 * noise: 2d Perlin noise.
 * sql: Asynchronous MySQL/MariaDB client library.
+  * There are also two sub-features: `native_tls` and `rustls_tls`. `rustls_tls` is a default feature, while the former is not.
 * time: High-accuracy time measuring.
 * toml: TOML parser.
 * url: Faster replacements for `url_encode` and `url_decode`.
