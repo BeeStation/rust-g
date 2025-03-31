@@ -18,6 +18,9 @@ thread_local! {
 }
 
 pub unsafe fn parse_args<'a>(argc: c_int, argv: *const *const c_char) -> Vec<Cow<'a, str>> {
+    if argc == 0 || argv.is_null() {
+        return Vec::new();
+    }
     unsafe {
         slice::from_raw_parts(argv, argc as usize)
             .iter()
@@ -97,7 +100,6 @@ pub fn set_panic_hook() {
     SET_HOOK.call_once(|| {
         std::panic::set_hook(Box::new(|panic_info| {
             let mut file = OpenOptions::new()
-                .write(true)
                 .append(true)
                 .create(true)
                 .open("rustg-panic.log")
@@ -118,6 +120,7 @@ pub fn set_panic_hook() {
     });
 }
 
+#[allow(dead_code)] // Used depending on feature set
 /// Utility for BYOND functions to catch panic unwinds safely and return a Result<String, Error>, as expected.
 /// Usage: catch_panic(|| internal_safe_function(arguments))
 pub fn catch_panic<F>(f: F) -> Result<String, Error>

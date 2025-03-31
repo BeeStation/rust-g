@@ -723,7 +723,9 @@ fn icon_from_io(icon_in: IconObjectIO) -> IconObject {
         transform_hash_input: String::new(),
         icon_hash_input: String::new(),
     };
-    result.gen_icon_hash_input().unwrap(); // unsafe but idc
+    // This line can panic, but I consider that acceptable considering how annoying "proper" error handling would be
+    // especially when this failing basically breaks the entire program. The panic will be caught and written to logs anyway.
+    result.gen_icon_hash_input().unwrap();
     result
 }
 
@@ -884,7 +886,11 @@ fn apply_all_transforms(image: &mut RgbaImage, transforms: &Vec<Transform>) -> R
     Ok(())
 }
 
-fn blend_color(image: &mut RgbaImage, color: &String, blend_mode: &u8) -> Result<(), String> {
+fn blend_color(
+    image: &mut RgbaImage,
+    color: &String,
+    blend_mode: &BlendMode,
+) -> Result<(), String> {
     zone!("blend_color");
     let mut color2: [u8; 4] = [0, 0, 0, 255];
     {
@@ -905,7 +911,7 @@ fn blend_color(image: &mut RgbaImage, color: &String, blend_mode: &u8) -> Result
         for y in 0..image.height() {
             let px = image.get_pixel_mut(x, y);
             let pixel = px.channels();
-            let blended = Rgba::blend_u8(pixel, &color2, *blend_mode);
+            let blended = Rgba::blend_u8(pixel, &color2, blend_mode);
 
             *px = image::Rgba::<u8>(blended);
         }
@@ -916,17 +922,17 @@ fn blend_color(image: &mut RgbaImage, color: &String, blend_mode: &u8) -> Result
 fn blend_icon(
     image: &mut RgbaImage,
     other_image: &RgbaImage,
-    blend_mode: &u8,
+    blend_mode: &BlendMode,
 ) -> Result<(), String> {
     zone!("blend_icon");
     for x in 0..std::cmp::min(image.width(), other_image.width()) {
-        for y in 0..std::cmp::min(image.width(), other_image.width()) {
+        for y in 0..std::cmp::min(image.height(), other_image.height()) {
             let px1 = image.get_pixel_mut(x, y);
             let px2 = other_image.get_pixel(x, y);
             let pixel_1 = px1.channels();
             let pixel_2 = px2.channels();
 
-            let blended = Rgba::blend_u8(pixel_1, pixel_2, *blend_mode);
+            let blended = Rgba::blend_u8(pixel_1, pixel_2, blend_mode);
 
             *px1 = image::Rgba::<u8>(blended);
         }
@@ -939,9 +945,7 @@ fn transform_image(image: &mut RgbaImage, transform: &Transform) -> Result<(), S
     zone!("transform_image");
     match transform {
         Transform::BlendColor { color, blend_mode } => {
-            if let Err(err) = blend_color(image, color, blend_mode) {
-                return Err(err);
-            }
+            blend_color(image, color, &BlendMode::from_u8(blend_mode)?)?
         }
         Transform::BlendIcon { icon, blend_mode } => {
             zone!("blend_icon");
@@ -951,9 +955,7 @@ fn transform_image(image: &mut RgbaImage, transform: &Transform) -> Result<(), S
             if !cached {
                 apply_all_transforms(&mut other_image, &icon.transform)?;
             };
-            if let Err(err) = blend_icon(image, &other_image, blend_mode) {
-                return Err(err);
-            }
+            blend_icon(image, &other_image, &BlendMode::from_u8(blend_mode)?)?;
             if let Err(err) = return_image(other_image, icon) {
                 return Err(err.to_string());
             }
@@ -1092,24 +1094,28 @@ enum GAGSLayer {
 }
 
 impl GAGSLayer {
-    fn get_blendmode(&self) -> String {
+    fn get_blendmode_str(&self) -> &String {
         match self {
             GAGSLayer::IconState {
                 icon_state: _,
                 blend_mode,
                 color_ids: _,
-            } => blend_mode.to_owned(),
+            } => blend_mode,
             GAGSLayer::Reference {
                 reference_type: _,
                 icon_state: _,
                 blend_mode,
                 color_ids: _,
-            } => blend_mode.to_owned(),
+            } => blend_mode,
             GAGSLayer::ColorMatrix {
                 blend_mode,
                 color_matrix: _,
-            } => blend_mode.to_owned(),
+            } => blend_mode,
         }
+    }
+
+    fn get_blendmode(&self) -> Result<BlendMode, String> {
+        BlendMode::from_str(self.get_blendmode_str().as_str())
     }
 }
 
@@ -1169,7 +1175,7 @@ fn gags(config_path: &str, colors: &str, output_dmi_path: &str) -> Result<String
     };
 
     let colors_vec = colors
-        .split("#")
+        .split('#')
         .map(|x| String::from("#") + x)
         .filter(|x| x != "#")
         .collect::<Vec<String>>();
@@ -1179,7 +1185,8 @@ fn gags(config_path: &str, colors: &str, output_dmi_path: &str) -> Result<String
     gags_data.config.par_iter().for_each(|(icon_state_name, layer_groups)| {
         zone!("gags_create_icon_state");
         let mut first_matched_state: Option<IconState> = None;
-        let transformed_images = match generate_layer_groups_for_iconstate(icon_state_name, &colors_vec, layer_groups, &gags_data, None, &mut first_matched_state) {
+        let mut last_matched_state: Option<IconState> = None;
+        let transformed_images = match generate_layer_groups_for_iconstate(icon_state_name, &colors_vec, layer_groups, &gags_data, None, &mut first_matched_state, &mut last_matched_state) {
             Ok(images) => images,
             Err(err) => {
                 errors.lock().unwrap().push(err);
@@ -1217,6 +1224,15 @@ fn gags(config_path: &str, colors: &str, output_dmi_path: &str) -> Result<String
     }
 
     {
+        zone!("gags_sort_states");
+        // This is important, because it allows GAGS icons to be included inside of caches - they will output in the same order between runs.
+        output_states
+            .lock()
+            .unwrap()
+            .sort_unstable_by(|state1, state2| state1.name.cmp(&state2.name))
+    }
+
+    {
         zone!("gags_write_dmi");
         let path = std::path::Path::new(output_dmi_path);
         std::fs::create_dir_all(path.parent().unwrap())?;
@@ -1232,7 +1248,7 @@ fn gags(config_path: &str, colors: &str, output_dmi_path: &str) -> Result<String
         {
             return Err(Error::IconForge(format!(
                 "Error during icon saving: {}",
-                err.to_string()
+                err
             )));
         }
     }
@@ -1247,6 +1263,7 @@ fn gags_internal(
     icon_state: &String,
     last_external_images: Option<Vec<DynamicImage>>,
     first_matched_state: &mut Option<IconState>,
+    last_matched_state: &mut Option<IconState>,
 ) -> Result<Vec<DynamicImage>, String> {
     zone!("gags_internal");
     let gags_data = match GAGS_CACHE.get(config_path) {
@@ -1265,6 +1282,7 @@ fn gags_internal(
     {
         zone!("gags_create_icon_state");
         let mut first_matched_state_internal: Option<IconState> = None;
+        let mut last_matched_state_internal: Option<IconState> = None;
         let transformed_images = match generate_layer_groups_for_iconstate(
             icon_state,
             colors_vec,
@@ -1272,6 +1290,7 @@ fn gags_internal(
             &gags_data,
             last_external_images,
             &mut first_matched_state_internal,
+            &mut last_matched_state_internal,
         ) {
             Ok(images) => images,
             Err(err) => {
@@ -1283,6 +1302,7 @@ fn gags_internal(
             if first_matched_state.is_none() && first_matched_state_internal.is_some() {
                 *first_matched_state = first_matched_state_internal;
             }
+            *last_matched_state = last_matched_state_internal;
         }
         Ok(transformed_images)
     }
@@ -1296,12 +1316,13 @@ fn generate_layer_groups_for_iconstate(
     gags_data: &GAGSData,
     last_external_images: Option<Vec<DynamicImage>>,
     first_matched_state: &mut Option<IconState>,
+    last_matched_state: &mut Option<IconState>,
 ) -> Result<Vec<DynamicImage>, String> {
     zone!("generate_layer_groups_for_iconstate");
     let mut new_images: Option<Vec<DynamicImage>> = None;
     for option in layer_groups {
         zone!("process_gags_layergroup_option");
-        let (layer_images, blend_mode) = match option {
+        let (layer_images, blend_mode_result) = match option {
             GAGSLayerGroupOption::GAGSLayer(layer) => (
                 generate_layer_for_iconstate(
                     state_name,
@@ -1310,6 +1331,7 @@ fn generate_layer_groups_for_iconstate(
                     gags_data,
                     new_images.clone().or(last_external_images.clone()),
                     first_matched_state,
+                    last_matched_state,
                 )?,
                 layer.get_blendmode(),
             ),
@@ -1328,6 +1350,7 @@ fn generate_layer_groups_for_iconstate(
                         gags_data,
                         new_images.clone().or(last_external_images.clone()),
                         first_matched_state,
+                        last_matched_state,
                     )?,
                     match layers.first().unwrap() {
                         GAGSLayerGroupOption::GAGSLayer(layer) => layer.get_blendmode(),
@@ -1339,8 +1362,15 @@ fn generate_layer_groups_for_iconstate(
             }
         };
 
+        let blend_mode = blend_mode_result?;
         new_images = match new_images {
-            Some(images) => Some(blend_images_other(images, layer_images, &blend_mode)?),
+            Some(images) => Some(blend_images_other(
+                images,
+                layer_images,
+                &blend_mode,
+                first_matched_state,
+                last_matched_state,
+            )?),
             None => Some(layer_images),
         }
     }
@@ -1353,11 +1383,12 @@ fn generate_layer_groups_for_iconstate(
 /// Generates a specific layer.
 fn generate_layer_for_iconstate(
     state_name: &str,
-    colors: &Vec<String>,
+    colors: &[String],
     layer: &GAGSLayer,
     gags_data: &GAGSData,
     new_images: Option<Vec<DynamicImage>>,
     first_matched_state: &mut Option<IconState>,
+    last_matched_state: &mut Option<IconState>,
 ) -> Result<Vec<DynamicImage>, String> {
     zone!("generate_layer_for_iconstate");
     let images_result: Option<Vec<DynamicImage>> = match layer {
@@ -1386,6 +1417,8 @@ fn generate_layer_for_iconstate(
                 *first_matched_state = Some(icon_state.clone());
             }
 
+            *last_matched_state = Some(icon_state.clone());
+
             let images = icon_state.images.clone();
             if !color_ids.is_empty() {
                 // silly BYOND, indexes from 1! Also, for some reason this is an array despite only ever having one value. Thanks TG :)
@@ -1396,7 +1429,7 @@ fn generate_layer_for_iconstate(
                 return Ok(blend_images_color(
                     images,
                     actual_color,
-                    &String::from("multiply"),
+                    &BlendMode::Multiply,
                 )?);
             } else {
                 return Ok(images); // this will get blended by the layergroup.
@@ -1409,7 +1442,7 @@ fn generate_layer_for_iconstate(
             color_ids,
         } => {
             zone!("gags_layer_type_reference");
-            let mut colors_in: Vec<String> = colors.clone();
+            let mut colors_in: Vec<String> = colors.to_owned();
             if !color_ids.is_empty() {
                 colors_in = color_ids
                     .iter()
@@ -1427,6 +1460,7 @@ fn generate_layer_for_iconstate(
                 icon_state,
                 new_images,
                 first_matched_state,
+                last_matched_state,
             )?)
         }
         GAGSLayer::ColorMatrix {
@@ -1448,7 +1482,7 @@ fn generate_layer_for_iconstate(
 fn blend_images_color(
     images: Vec<DynamicImage>,
     color: &String,
-    blend_mode: &String,
+    blend_mode: &BlendMode,
 ) -> Result<Vec<DynamicImage>, Error> {
     zone!("blend_images_color");
     let errors = Arc::new(Mutex::new(Vec::<String>::new()));
@@ -1457,24 +1491,7 @@ fn blend_images_color(
         .map(|image| {
             zone!("blend_image_color");
             let mut new_image = image.clone().into_rgba8();
-            if let Err(err) = blend_color(
-                &mut new_image,
-                color,
-                &match blend_mode.as_str() {
-                    "add" => 0,
-                    "subtract" => 1,
-                    "multiply" => 2,
-                    "overlay" => 3,
-                    "underlay" => 6,
-                    _ => {
-                        errors
-                            .lock()
-                            .unwrap()
-                            .push(format!("blend_mode '{}' is not supported!", blend_mode));
-                        3
-                    }
-                },
-            ) {
+            if let Err(err) = blend_color(&mut new_image, color, blend_mode) {
                 errors.lock().unwrap().push(err);
             }
             DynamicImage::ImageRgba8(new_image)
@@ -1490,38 +1507,96 @@ fn blend_images_color(
 /// Blends a set of images with another set of images.
 fn blend_images_other(
     images: Vec<DynamicImage>,
-    mut images_other: Vec<DynamicImage>,
-    blend_mode: &String,
+    images_other: Vec<DynamicImage>,
+    blend_mode: &BlendMode,
+    first_matched_state: &mut Option<IconState>,
+    last_matched_state: &mut Option<IconState>,
 ) -> Result<Vec<DynamicImage>, Error> {
     zone!("blend_images_other");
+    let first_icon_state = match first_matched_state {
+        Some(state) => state,
+        None => {
+            return Err(Error::IconForge("No value in first_matched_state during blend_images_other. This should never happen, unless a GAGS config doesn't start with an icon_state.".to_string()));
+        }
+    };
+    let last_icon_state = match last_matched_state {
+        Some(state) => state,
+        None => {
+            return Err(Error::IconForge("No value in last_matched_state during blend_images_other. This should never happen, unless a GAGS config doesn't start with an icon_state.".to_string()));
+        }
+    };
     let errors = Arc::new(Mutex::new(Vec::<String>::new()));
-    let images_out: Vec<DynamicImage>;
-    if images_other.len() == 1 {
+    let expected_length_first = first_icon_state.dirs as u32 * first_icon_state.frames;
+    // Make sure our logic sound... First and last should correctly match these two Vecs at all times, but this assumption might be incorrect.
+    if expected_length_first != images.len() as u32 {
+        return Err(Error::IconForge(format!(
+            "Error during blend_images_other - the base set of images did not contain the correct amount of images (contains {}, it should contain {}) to match the amount of dirs ({}) or frames ({}) from the first icon state. This shouldn't ever happen!",
+            images.len(), expected_length_first, first_icon_state.dirs, first_icon_state.frames
+        )));
+    }
+    let expected_length_last = last_icon_state.dirs as u32 * last_icon_state.frames;
+    if expected_length_last != images_other.len() as u32 {
+        return Err(Error::IconForge(format!(
+            "Error during blend_images_other - the blending set of images did not contain the correct amount of images (contains {}, it should contain {}) to match the amount of dirs ({}) or frames ({}) from the last icon state. This shouldn't ever happen!",
+            images_other.len(), expected_length_last, last_icon_state.dirs, last_icon_state.frames
+        )));
+    }
+    let mut images = images.clone();
+    let mut images_other = images_other.clone();
+    // Now we can complain to the user to handle a difference in length.
+    if first_icon_state.dirs != last_icon_state.dirs {
+        // We can handle the specific case where there's only one dir being blended onto multiple. Copy the icon for each frame onto all dirs.
+        if first_icon_state.dirs > last_icon_state.dirs && last_icon_state.dirs == 1 {
+            // Loop backwards so that the frame indexes remain consistent while we iterate, since inserts shift the array right
+            for i in (0..(last_icon_state.frames)).rev() {
+                // Add the missing dirs between frames
+                for _ in 0..(first_icon_state.dirs - 1) {
+                    // Insert after the current frame index
+                    images_other.insert(
+                        (i + 1) as usize,
+                        images_other.get(i as usize).unwrap().clone(),
+                    );
+                }
+            }
+            // Copy the dir amount in case we need to handle frame cases next.
+            last_icon_state.dirs = first_icon_state.dirs;
+        } else {
+            return Err(Error::IconForge(format!(
+                "Attempted to blend two icon states with different dir amounts - {} and {}, with {} and {} dirs respectively.",
+                first_icon_state.name, last_icon_state.name, first_icon_state.dirs, last_icon_state.dirs
+            )));
+        }
+    }
+
+    if first_icon_state.frames != last_icon_state.frames {
+        // We can handle the specific case where there's only one frame on the base and the other has more frames. Simply add copies of that first frame.
+        if last_icon_state.frames > 1 && first_icon_state.frames == 1 {
+            for _ in 0..(last_icon_state.frames - 1) {
+                // Copy all dirs for each frame
+                for i in 0..(first_icon_state.dirs) {
+                    images.push(images.get(i as usize).unwrap().clone());
+                }
+            }
+            // Update the output IconState's frame count, because the values from the first state are used for the final result.
+            first_icon_state.frames = last_icon_state.frames;
+            // Copy the delays as well
+            first_icon_state.delay = last_icon_state.delay.to_owned();
+        } else {
+            return Err(Error::IconForge(format!(
+                "Attempted to blend two icon states with different frame amounts - {} and {}, with {} and {} frames respectively.",
+                first_icon_state.name, last_icon_state.name, first_icon_state.frames, last_icon_state.frames
+            )));
+        }
+    }
+    let images_out: Vec<DynamicImage> = if images_other.len() == 1 {
         // This is useful in the case where the something with 4+ dirs blends with 1dir
-        let first_image = images_other.remove(0).into_rgba8();
-        images_out = images
+        let first_image = images_other.first().unwrap().clone().into_rgba8();
+        images
             .into_par_iter()
             .map(|image| {
                 zone!("blend_image_other_simple");
                 let mut new_image = image.clone().into_rgba8();
-                match blend_icon(
-                    &mut new_image,
-                    &first_image,
-                    &match blend_mode.as_str() {
-                        "add" => 0,
-                        "subtract" => 1,
-                        "multiply" => 2,
-                        "overlay" => 3,
-                        "underlay" => 6,
-                        _ => {
-                            errors
-                                .lock()
-                                .unwrap()
-                                .push(format!("blend_mode '{}' is not supported!", blend_mode));
-                            3
-                        }
-                    },
-                ) {
+                match blend_icon(&mut new_image, &first_image, blend_mode) {
                     Ok(_) => (),
                     Err(error) => {
                         errors.lock().unwrap().push(error);
@@ -1529,31 +1604,14 @@ fn blend_images_other(
                 };
                 DynamicImage::ImageRgba8(new_image)
             })
-            .collect();
+            .collect()
     } else {
-        images_out = (images, images_other)
+        (images, images_other)
             .into_par_iter()
             .map(|(image, image2)| {
                 zone!("blend_image_other");
                 let mut new_image = image.clone().into_rgba8();
-                match blend_icon(
-                    &mut new_image,
-                    &image2.into_rgba8(),
-                    &match blend_mode.as_str() {
-                        "add" => 0,
-                        "subtract" => 1,
-                        "multiply" => 2,
-                        "overlay" => 3,
-                        "underlay" => 6,
-                        _ => {
-                            errors
-                                .lock()
-                                .unwrap()
-                                .push(format!("blend_mode '{}' is not supported!", blend_mode));
-                            3
-                        }
-                    },
-                ) {
+                match blend_icon(&mut new_image, &image2.into_rgba8(), blend_mode) {
                     Ok(_) => (),
                     Err(error) => {
                         errors.lock().unwrap().push(error);
@@ -1561,8 +1619,8 @@ fn blend_images_other(
                 };
                 DynamicImage::ImageRgba8(new_image)
             })
-            .collect();
-    }
+            .collect()
+    };
     let errors_unlock = errors.lock().unwrap();
     if !errors_unlock.is_empty() {
         return Err(Error::IconForge(errors_unlock.join("\n")));
@@ -1576,6 +1634,41 @@ struct Rgba {
     g: f32,
     b: f32,
     a: f32,
+}
+
+// The numbers correspond to BYOND ICON_X blend modes. https://www.byond.com/docs/ref/#/icon/proc/Blend
+#[derive(Clone, Hash, Eq, PartialEq, Serialize)]
+#[repr(u8)]
+pub enum BlendMode {
+    Add = 0,
+    Subtract = 1,
+    Multiply = 2,
+    Overlay = 3,
+    Underlay = 6,
+}
+
+impl BlendMode {
+    fn from_u8(blend_mode: &u8) -> Result<BlendMode, String> {
+        match *blend_mode {
+            0 => Ok(BlendMode::Add),
+            1 => Ok(BlendMode::Subtract),
+            2 => Ok(BlendMode::Multiply),
+            3 => Ok(BlendMode::Overlay),
+            6 => Ok(BlendMode::Underlay),
+            _ => Err(format!("blend_mode '{}' is not supported!", blend_mode)),
+        }
+    }
+
+    fn from_str(blend_mode: &str) -> Result<BlendMode, String> {
+        match blend_mode {
+            "add" => Ok(BlendMode::Add),
+            "subtract" => Ok(BlendMode::Subtract),
+            "multiply" => Ok(BlendMode::Multiply),
+            "overlay" => Ok(BlendMode::Overlay),
+            "underlay" => Ok(BlendMode::Underlay),
+            _ => Err(format!("blend_mode '{}' is not supported!", blend_mode)),
+        }
+    }
 }
 
 impl Rgba {
@@ -1624,24 +1717,24 @@ impl Rgba {
     }
 
     /// Takes two [u8; 4]s, converts them to Rgba structs, then blends them according to blend_mode by calling blend().
-    fn blend_u8(color: &[u8], other_color: &[u8], blend_mode: u8) -> [u8; 4] {
+    fn blend_u8(color: &[u8], other_color: &[u8], blend_mode: &BlendMode) -> [u8; 4] {
         Rgba::from_array(color)
             .blend(&Rgba::from_array(other_color), blend_mode)
             .into_array()
     }
 
-    /// Blends two colors according to blend_mode. The numbers correspond to BYOND blend modes.
-    fn blend(&self, other_color: &Rgba, blend_mode: u8) -> Rgba {
+    /// Blends two colors according to blend_mode.
+    fn blend(&self, other_color: &Rgba, blend_mode: &BlendMode) -> Rgba {
         match blend_mode {
-            0 => Rgba::map_each(self, other_color, |c1, c2| c1 + c2, f32::min),
-            1 => Rgba::map_each(self, other_color, |c1, c2| c1 - c2, f32::min),
-            2 => Rgba::map_each(
+            BlendMode::Add => Rgba::map_each(self, other_color, |c1, c2| c1 + c2, f32::min),
+            BlendMode::Subtract => Rgba::map_each(self, other_color, |c1, c2| c1 - c2, f32::min),
+            BlendMode::Multiply => Rgba::map_each(
                 self,
                 other_color,
                 |c1, c2| c1 * c2 / 255.0,
                 |a1: f32, a2: f32| a1 * a2 / 255.0,
             ),
-            3 => Rgba::map_each_a(
+            BlendMode::Overlay => Rgba::map_each_a(
                 self,
                 other_color,
                 |c1, c2, c1_a, c2_a| {
@@ -1656,7 +1749,7 @@ impl Rgba {
                     high + (high * low / 255.0)
                 },
             ),
-            6 => Rgba::map_each_a(
+            BlendMode::Underlay => Rgba::map_each_a(
                 other_color,
                 self,
                 |c1, c2, c1_a, c2_a| {
@@ -1671,7 +1764,6 @@ impl Rgba {
                     high + (high * low / 255.0)
                 },
             ),
-            _ => self.clone(),
         }
     }
 }

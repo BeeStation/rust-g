@@ -41,6 +41,7 @@ pub enum Error {
     ParseInt(#[from] ParseIntError),
     #[error(transparent)]
     ParseFloat(#[from] ParseFloatError),
+    #[cfg(feature = "png")]
     #[error(transparent)]
     GenericImage(#[from] ImageError),
     #[cfg(feature = "png")]
@@ -48,7 +49,10 @@ pub enum Error {
     InvalidPngData,
     #[cfg(feature = "http")]
     #[error(transparent)]
-    Request(#[from] reqwest::Error),
+    Request(#[from] Box<ureq::Error>),
+    #[cfg(feature = "sound_len")]
+    #[error("SoundLen error: {0}")]
+    SoundLen(String),
     #[cfg(feature = "toml")]
     #[error(transparent)]
     TomlDeserialization(#[from] toml_dep::de::Error),

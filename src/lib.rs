@@ -1,4 +1,4 @@
-#![forbid(unsafe_op_in_unsafe_fn)]
+// #![forbid(unsafe_op_in_unsafe_fn)] - see github.com/rust-lang/rust/issues/121483
 
 #[macro_use]
 mod byond;
@@ -34,10 +34,16 @@ pub mod log;
 pub mod noise_gen;
 #[cfg(feature = "pathfinder")]
 pub mod pathfinder;
+#[cfg(feature = "poissonnoise")]
+pub mod poissonnoise;
 #[cfg(feature = "redis_pubsub")]
 pub mod redis_pubsub;
 #[cfg(feature = "redis_reliablequeue")]
 pub mod redis_reliablequeue;
+#[cfg(feature = "sanitize")]
+pub mod sanitize;
+#[cfg(feature = "sound_len")]
+pub mod sound_len;
 #[cfg(feature = "sql")]
 pub mod sql;
 #[cfg(feature = "time")]
@@ -51,5 +57,7 @@ pub mod url;
 #[cfg(feature = "worleynoise")]
 pub mod worleynoise;
 
-#[cfg(not(target_pointer_width = "32"))]
-compile_error!("rust-g must be compiled for a 32-bit target");
+#[cfg(all(not(target_pointer_width = "32"), not(feature = "allow_non_32bit")))]
+compile_error!(
+    "Compiling for non-32bit is not allowed without enabling the `allow_non_32bit` feature."
+);
