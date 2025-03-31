@@ -71,8 +71,8 @@ jobs:
       - name: Rustfmt
         run: cargo fmt -- --check
 
-      - name: x84 Build (release) (all features)
-        run: cargo build -Z build-std --target x86_64-pc-windows-msvc --features allow_non_32bit --locked --release --features all
+      - name: x64 Build (release) (all features)
+        run: cargo build -Z build-std --target x86_64-pc-windows-msvc --features all,allow_non_32bit --locked --release
 
       - name: Rename x64 artifacts (all features)
         run: |
@@ -190,7 +190,7 @@ jobs:
         run: cargo build --target x86_64-unknown-linux-gnu --locked --features all,allow_non_32bit
 
       - name: x64 Build (release) (all features)
-        run: cargo build --target x86_64-unknown-linux-gnu --locked --features allow_non_32bit --release
+        run: cargo build --target x86_64-unknown-linux-gnu --locked --features all,allow_non_32bit --release
 
       - name: Rename x64 artifacts (all features)
         run: |
