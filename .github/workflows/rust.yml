@@ -20,23 +20,27 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Clippy (all features)
-        continue-on-error: true
         run: cargo clippy -Z build-std --target i686-win7-windows-msvc --features all --locked -- -D warnings
 
       - name: Rustfmt
-        continue-on-error: true
         run: cargo fmt -- --check
 
       - name: Build (release) (all features)
-        run: cargo build --target i686-pc-windows-msvc --locked --release --features all
+        run: cargo build -Z build-std --target i686-win7-windows-msvc --locked --release --features all
+
+      - name: Rename artifacts (all features)
+        run: |
+          Move-Item -Path "target\i686-win7-windows-msvc\release\rust_g.dll" -Destination "target\i686-win7-windows-msvc\release\full_rust_g64.dll"
+          Move-Item -Path "target\i686-win7-windows-msvc\release\rust_g.pdb" -Destination "target\i686-win7-windows-msvc\release\full_rust_g64.pdb"
+          Move-Item -Path "target\rust_g.dm" -Destination "target\full_rust_g.dm"
 
       - uses: actions/upload-artifact@v3
         with:
           name: Windows Build (All Features)
           path: |
-            target/i686-pc-windows-msvc/release/rust_g.dll
-            target/i686-pc-windows-msvc/release/rust_g.pdb
-            target/rust_g.dm
+            target/i686-win7-windows-msvc/release/full_rust_g.dll
+            target/i686-win7-windows-msvc/release/full_rust_g.pdb
+            target/full_rust_g.dm
 
       - name: Build (release) (default features)
         run: cargo build -Z build-std --target i686-win7-windows-msvc --locked --release
@@ -67,24 +71,41 @@ jobs:
       - name: Rustfmt
         run: cargo fmt -- --check
 
+      - name: x84 Build (release) (all features)
+        run: cargo build -Z build-std --target x86_64-pc-windows-msvc --features allow_non_32bit --locked --release --features all
+
+      - name: Rename x64 artifacts (all features)
+        run: |
+          Move-Item -Path "target\x86_64-pc-windows-msvc\release\rust_g.dll" -Destination "target\x86_64-pc-windows-msvc\release\full_rust_g64.dll"
+          Move-Item -Path "target\x86_64-pc-windows-msvc\release\rust_g.pdb" -Destination "target\x86_64-pc-windows-msvc\release\full_rust_g64.pdb"
+          Move-Item -Path "target\rust_g.dm" -Destination "target\full_rust_g.dm"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows Build x64 (All Features)
+          path: |
+            target/x86_64-pc-windows-msvc/release/full_rust_g64.dll
+            target/x86_64-pc-windows-msvc/release/full_rust_g64.pdb
+            target/full_rust_g.dm
+
       - name: x64 Build (release) (default features)
         run: cargo build -Z build-std --target x86_64-pc-windows-msvc --features allow_non_32bit --locked --release
 
-      - name: Rename x64 artifacts
+      - name: Rename x64 artifacts (default features)
         run: |
           Move-Item -Path "target\x86_64-pc-windows-msvc\release\rust_g.dll" -Destination "target\x86_64-pc-windows-msvc\release\rust_g64.dll"
           Move-Item -Path "target\x86_64-pc-windows-msvc\release\rust_g.pdb" -Destination "target\x86_64-pc-windows-msvc\release\rust_g64.pdb"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Windows Build x64
+          name: Windows Build x64 (Default Features)
           path: |
             target/x86_64-pc-windows-msvc/release/rust_g64.dll
             target/x86_64-pc-windows-msvc/release/rust_g64.pdb
             target/rust_g.dm
 
   build-linux:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     env:
       BYOND_MAJOR: 515
       BYOND_MINOR: 1642
@@ -105,15 +126,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Check (all features)
-        continue-on-error: true
         run: cargo check --target i686-unknown-linux-gnu --locked --features all
 
       - name: Build (debug) (all features)
-        continue-on-error: true
         run: cargo build --target i686-unknown-linux-gnu --locked --features all
 
       - name: Run tests (all features)
-        continue-on-error: true
         run: cargo test --target i686-unknown-linux-gnu --locked --features all
         env:
           BYOND_BIN: /home/runner/BYOND/byond/bin
@@ -121,12 +139,17 @@ jobs:
       - name: Build (release) (all features)
         run: cargo build --target i686-unknown-linux-gnu --locked --release --features all
 
+      - name: Rename artifacts (all features)
+        run: |
+          mv target/i686-unknown-linux-gnu/release/librust_g.so target/i686-unknown-linux-gnu/release/full_librust_g.so
+          mv target/rust_g.dm target/full_rust_g.dm
+
       - uses: actions/upload-artifact@v3
         with:
           name: Linux Build (All Features)
           path: |
-            target/i686-unknown-linux-gnu/release/librust_g.so
-            target/rust_g.dm
+            target/i686-unknown-linux-gnu/release/full_librust_g.so
+            target/full_rust_g.dm
 
       - name: Build (release) (default features)
         run: cargo build --target i686-unknown-linux-gnu --locked --release
@@ -166,15 +189,30 @@ jobs:
       - name: x64 Build (Debug) (all features)
         run: cargo build --target x86_64-unknown-linux-gnu --locked --features all,allow_non_32bit
 
+      - name: x64 Build (release) (all features)
+        run: cargo build --target x86_64-unknown-linux-gnu --locked --features allow_non_32bit --release
+
+      - name: Rename x64 artifacts (all features)
+        run: |
+          mv target/x86_64-unknown-linux-gnu/release/librust_g.so target/x86_64-unknown-linux-gnu/release/full_librust_g64.so
+          mv target/rust_g.dm target/full_rust_g.dm
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Linux Build x64 (All Features)
+          path: |
+            target/x86_64-unknown-linux-gnu/release/full_librust_g64.so
+            target/full_rust_g.dm
+
       - name: x64 Build (release) (default features)
         run: cargo build --target x86_64-unknown-linux-gnu --locked --features allow_non_32bit --release
 
-      - name: Rename x64 artifacts
+      - name: Rename x64 artifacts (default features)
         run: mv target/x86_64-unknown-linux-gnu/release/librust_g.so target/x86_64-unknown-linux-gnu/release/librust_g64.so
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Linux Build x64
+          name: Linux Build x64 (Default Features)
           path: |
             target/x86_64-unknown-linux-gnu/release/librust_g64.so
             target/rust_g.dm
