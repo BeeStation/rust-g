@@ -34,7 +34,7 @@ jobs:
           Move-Item -Path "target\i686-win7-windows-msvc\release\rust_g.pdb" -Destination "target\i686-win7-windows-msvc\release\full_rust_g64.pdb"
           Move-Item -Path "target\rust_g.dm" -Destination "target\full_rust_g.dm"
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: Windows Build (All Features)
           path: |
@@ -144,7 +144,7 @@ jobs:
           mv target/i686-unknown-linux-gnu/release/librust_g.so target/i686-unknown-linux-gnu/release/full_librust_g.so
           mv target/rust_g.dm target/full_rust_g.dm
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: Linux Build (All Features)
           path: |
