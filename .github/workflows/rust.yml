@@ -9,70 +9,78 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
+    env:
+      BYOND_MAJOR: 516
+      BYOND_MINOR: 1667
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install BYOND
+        run: |
+          bash scripts/install_byond.sh
+          echo "BYOND_BIN=$env:USERPROFILE\BYOND\byond\bin" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - uses: dtolnay/rust-toolchain@1.89
         with:
-          targets: x86_64-pc-windows-msvc
-          components: clippy, rustfmt, rust-src
+          targets: i686-pc-windows-msvc
+          components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v2
 
       - name: Clippy (all features)
-        run: cargo clippy -Z build-std --target i686-win7-windows-msvc --features all --locked -- -D warnings
+        run: cargo clippy --target i686-pc-windows-msvc --features all --locked -- -D warnings
 
       - name: Rustfmt
         run: cargo fmt -- --check
 
       - name: Build (release) (all features)
-        run: cargo build -Z build-std --target i686-win7-windows-msvc --locked --release --features all
+        run: cargo build --target i686-pc-windows-msvc --locked --release --features all
 
       - name: Rename artifacts (all features)
         run: |
-          Move-Item -Path "target\i686-win7-windows-msvc\release\rust_g.dll" -Destination "target\i686-win7-windows-msvc\release\full_rust_g.dll"
-          Move-Item -Path "target\i686-win7-windows-msvc\release\rust_g.pdb" -Destination "target\i686-win7-windows-msvc\release\full_rust_g.pdb"
+          Move-Item -Path "target\i686-pc-windows-msvc\release\rust_g.dll" -Destination "target\i686-pc-windows-msvc\release\full_rust_g.dll"
+          Move-Item -Path "target\i686-pc-windows-msvc\release\rust_g.pdb" -Destination "target\i686-pc-windows-msvc\release\full_rust_g.pdb"
           Move-Item -Path "target\rust_g.dm" -Destination "target\full_rust_g.dm"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: Windows Build (All Features)
           path: |
-            target/i686-win7-windows-msvc/release/full_rust_g.dll
-            target/i686-win7-windows-msvc/release/full_rust_g.pdb
+            target/i686-pc-windows-msvc/release/full_rust_g.dll
+            target/i686-pc-windows-msvc/release/full_rust_g.pdb
             target/full_rust_g.dm
 
       - name: Build (release) (default features)
-        run: cargo build -Z build-std --target i686-win7-windows-msvc --locked --release
+        run: cargo build --target i686-pc-windows-msvc --locked --release
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: Windows Build (Default Features)
           path: |
-            target/i686-win7-windows-msvc/release/rust_g.dll
-            target/i686-win7-windows-msvc/release/rust_g.pdb
+            target/i686-pc-windows-msvc/release/rust_g.dll
+            target/i686-pc-windows-msvc/release/rust_g.pdb
             target/rust_g.dm
 
   build-windows-x64:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@1.89
         with:
           targets: x86_64-pc-windows-msvc
-          components: clippy, rustfmt, rust-src
+          components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v2
 
       - name: x64 Clippy (all features)
-        run: cargo clippy -Z build-std --target x86_64-pc-windows-msvc --features all,allow_non_32bit --locked -- -D warnings
+        run: cargo clippy --target x86_64-pc-windows-msvc --features all,allow_non_32bit --locked -- -D warnings
 
       - name: Rustfmt
         run: cargo fmt -- --check
 
       - name: x64 Build (release) (all features)
-        run: cargo build -Z build-std --target x86_64-pc-windows-msvc --features all,allow_non_32bit --locked --release
+        run: cargo build --target x86_64-pc-windows-msvc --features all,allow_non_32bit --locked --release
 
       - name: Rename x64 artifacts (all features)
         run: |
@@ -80,7 +88,7 @@ jobs:
           Move-Item -Path "target\x86_64-pc-windows-msvc\release\rust_g.pdb" -Destination "target\x86_64-pc-windows-msvc\release\full_rust_g64.pdb"
           Move-Item -Path "target\rust_g.dm" -Destination "target\full_rust_g.dm"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: Windows Build x64 (All Features)
           path: |
@@ -89,14 +97,14 @@ jobs:
             target/full_rust_g.dm
 
       - name: x64 Build (release) (default features)
-        run: cargo build -Z build-std --target x86_64-pc-windows-msvc --features allow_non_32bit --locked --release
+        run: cargo build --target x86_64-pc-windows-msvc --features allow_non_32bit --locked --release
 
       - name: Rename x64 artifacts (default features)
         run: |
           Move-Item -Path "target\x86_64-pc-windows-msvc\release\rust_g.dll" -Destination "target\x86_64-pc-windows-msvc\release\rust_g64.dll"
           Move-Item -Path "target\x86_64-pc-windows-msvc\release\rust_g.pdb" -Destination "target\x86_64-pc-windows-msvc\release\rust_g64.pdb"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: Windows Build x64 (Default Features)
           path: |
@@ -107,19 +115,19 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     env:
-      BYOND_MAJOR: 515
-      BYOND_MINOR: 1642
+      BYOND_MAJOR: 516
+      BYOND_MINOR: 1667
       PKG_CONFIG_ALLOW_CROSS: 1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install libgcc-s1:i386 g++-multilib zlib1g-dev:i386
+          sudo apt-get install libgcc-s1:i386 g++-multilib zlib1g-dev:i386 libcurl4:i386
           ./scripts/install_byond.sh
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@1.89
         with:
           targets: i686-unknown-linux-gnu, x86_64-unknown-linux-gnu
 
@@ -144,7 +152,7 @@ jobs:
           mv target/i686-unknown-linux-gnu/release/librust_g.so target/i686-unknown-linux-gnu/release/full_librust_g.so
           mv target/rust_g.dm target/full_rust_g.dm
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: Linux Build (All Features)
           path: |
@@ -154,7 +162,7 @@ jobs:
       - name: Build (release) (default features)
         run: cargo build --target i686-unknown-linux-gnu --locked --release
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: Linux Build (Default Features)
           path: |
@@ -164,20 +172,20 @@ jobs:
   build-linux-x64:
     runs-on: ubuntu-latest
     env:
-      BYOND_MAJOR: 515
-      BYOND_MINOR: 1642
+      BYOND_MAJOR: 516
+      BYOND_MINOR: 1667
       PKG_CONFIG_ALLOW_CROSS: 1
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install libgcc-s1:i386 g++-multilib zlib1g-dev:i386
+          sudo apt-get install libgcc-s1:i386 g++-multilib zlib1g-dev:i386 libcurl4:i386
           ./scripts/install_byond.sh
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@1.89
         with:
           targets: x86_64-unknown-linux-gnu
 
@@ -197,7 +205,7 @@ jobs:
           mv target/x86_64-unknown-linux-gnu/release/librust_g.so target/x86_64-unknown-linux-gnu/release/full_librust_g64.so
           mv target/rust_g.dm target/full_rust_g.dm
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: Linux Build x64 (All Features)
           path: |
@@ -210,7 +218,7 @@ jobs:
       - name: Rename x64 artifacts (default features)
         run: mv target/x86_64-unknown-linux-gnu/release/librust_g.so target/x86_64-unknown-linux-gnu/release/librust_g64.so
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: Linux Build x64 (Default Features)
           path: |

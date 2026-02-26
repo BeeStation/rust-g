@@ -54,6 +54,18 @@ byond_fn!(fn http_request_async(method, url, body, headers, options) {
     }))
 });
 
+byond_fn!(fn http_request_fire_and_forget(method, url, body, headers, options) {
+    let req = match construct_request(method, url, body, headers, options) {
+        Ok(r) => r,
+        Err(e) => return Some(e.to_string())
+    };
+
+    std::thread::spawn(move || {
+        let _ = req.req.send_bytes(&req.body); // discard result
+    });
+    Some("ok".to_owned())
+});
+
 // If the response can be deserialized -> success.
 // If the response can't be deserialized -> failure or WIP.
 byond_fn!(fn http_check_request(id) {

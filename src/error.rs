@@ -63,11 +63,21 @@ pub enum Error {
     #[error(transparent)]
     Unzip(#[from] ZipError),
     #[cfg(feature = "hash")]
-    #[error("Unable to decode hex value.")]
-    HexDecode,
+    #[error("TOTP seed is invalid length or not valid base32.")]
+    BadSeed,
+    #[cfg(feature = "hash")]
+    #[error("TOTP may not be more than 8 digits.")]
+    BadDigits,
     #[cfg(feature = "iconforge")]
     #[error("IconForge error: {0}")]
     IconForge(String),
+    #[cfg(feature = "dice")]
+    #[error(transparent)]
+    DiceRoll(#[from] caith::RollError),
+    #[error(transparent)]
+    Formatting(#[from] std::fmt::Error),
+    #[error(transparent)]
+    Dmi(#[from] dmi::error::DmiError),
     #[error("Panic during function execution: {0}")]
     Panic(String),
 }
